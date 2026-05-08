@@ -34,6 +34,12 @@ At the 4B scale, this reduces total GPU hours from **72 to 20** (3.6x speedup). 
   <img src="assets/cost.png" width="50%" alt="Training cost comparison"/>
 </p>
 
+### Release Progress
+
+- [x] Paper ([arXiv](https://www.arxiv.org/abs/2604.13010v1))
+- [x] Training code
+- [ ] Model weights (under legal review, coming soon)
+
 ### Contents
 
 + [Installation](#installation)
