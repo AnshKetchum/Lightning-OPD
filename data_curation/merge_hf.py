@@ -18,6 +18,8 @@ Usage:
 import argparse
 from pathlib import Path
 
+import json
+
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.ipc as ipc
@@ -81,6 +83,14 @@ def merge_arrow_files(input_dir: str, output: str, max_tokens: int | None = None
 
         if len(table) == 0:
             continue
+
+        if "messages" in table.schema.names:
+            idx = table.schema.get_field_index("messages")
+            messages_json = pa.array(
+                [json.dumps(row.as_py()) for row in table.column("messages")],
+                type=pa.string(),
+            )
+            table = table.set_column(idx, "messages", messages_json)
 
         table = table.replace_schema_metadata({})
 

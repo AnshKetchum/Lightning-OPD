@@ -127,7 +127,6 @@ def execute(rerun=True):
     )
 
     U.execute_train(
-        rerun=rerun,
         train_args=train_args,
         num_gpus_per_node=NUM_GPUS,
         megatron_model_type=MODEL_TYPE,
