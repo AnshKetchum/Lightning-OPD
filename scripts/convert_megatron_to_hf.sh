@@ -21,7 +21,7 @@ set -euo pipefail
 : "${HF_OUTPUT_DIR:?Please set HF_OUTPUT_DIR}"
 : "${ORIGIN_HF_DIR:?Please set ORIGIN_HF_DIR}"
 
-python tools/convert_torch_dist_to_hf.py \
+PYTHONPATH=/workspace/Lightning-OPD python tools/convert_torch_dist_to_hf.py \
     --input-dir "${MEGATRON_CKPT_DIR}" \
     --output-dir "${HF_OUTPUT_DIR}" \
     --origin-hf-dir "${ORIGIN_HF_DIR}"

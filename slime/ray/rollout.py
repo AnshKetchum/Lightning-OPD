@@ -283,6 +283,9 @@ class RolloutManager:
         if "teacher_log_probs" in samples[0].__dict__:
             train_data["teacher_log_probs"] = [sample.teacher_log_probs for sample in samples]
 
+        if "init_log_probs" in samples[0].__dict__:
+            train_data["init_log_probs"] = [sample.init_log_probs for sample in samples]
+
         if "verifiable_rewards" in samples[0].__dict__:
             train_data["verifiable_rewards"] = [
                 getattr(sample, "verifiable_rewards", None) for sample in samples
@@ -327,6 +330,7 @@ class RolloutManager:
                 "rollout_routed_experts",
                 "prompt",
                 "teacher_log_probs",
+                "init_log_probs",
                 "verifiable_rewards",
             ]:
                 if key not in data:

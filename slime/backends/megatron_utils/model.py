@@ -369,6 +369,7 @@ def train_one_step(
                 "returns",
                 "rollout_log_probs",
                 "teacher_log_probs",    # For OPD distillation loss
+                "init_log_probs",       # For pg_ratio logging (initial SFT policy)
             ],
             args.data_pad_size_multiplier,
         )

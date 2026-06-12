@@ -60,6 +60,11 @@ def post_process_rewards(args, samples: list[Sample], **kwargs):
             sample.teacher_log_probs = torch.tensor(
                 [float(x) for x in pre_teacher_lp], dtype=torch.float32
             )
+            pre_init_lp = metadata.get("init_log_probs", [])
+            if pre_init_lp is not None and len(pre_init_lp) > 0:
+                sample.init_log_probs = torch.tensor(
+                    [float(x) for x in pre_init_lp], dtype=torch.float32
+                )
         else:
             # Online OPD: extract teacher log-probs from sglang response
             t_log_probs = torch.tensor(

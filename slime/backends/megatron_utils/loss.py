@@ -596,6 +596,16 @@ def policy_loss_function(
         importance_weight_mean = sum_of_sample_mean(iw)
         importance_weight_std = sum_of_sample_mean((iw - 1).pow(2)).sqrt()
 
+    pg_ratio_mean = None
+    pg_ratio_std = None
+    if "init_log_probs" in batch and batch["init_log_probs"]:
+        device = log_probs.device
+        init_lp = [lp.to(device=device)[-rl:] for lp, rl in zip(batch["init_log_probs"], response_lengths)]
+        init_lp = torch.cat(init_lp, dim=0)
+        pg_ratio = torch.exp(log_probs.detach() - init_lp)
+        pg_ratio_mean = sum_of_sample_mean(pg_ratio)
+        pg_ratio_std = sum_of_sample_mean((pg_ratio - pg_ratio_mean).pow(2)).sqrt()
+
     reported_loss = {
         "loss": loss.clone().detach(),
         "pg_loss": pg_loss.clone().detach(),
@@ -609,6 +619,9 @@ def policy_loss_function(
     if importance_weight_mean is not None:
         reported_loss["importance_weight_mean"] = importance_weight_mean.clone().detach()
         reported_loss["importance_weight_std"] = importance_weight_std.clone().detach()
+    if pg_ratio_mean is not None:
+        reported_loss["pg_ratio_mean"] = pg_ratio_mean.clone().detach()
+        reported_loss["pg_ratio_std"] = pg_ratio_std.clone().detach()
 
     if args.use_kl_loss:
         reported_loss["kl_loss"] = kl_loss.clone().detach()
