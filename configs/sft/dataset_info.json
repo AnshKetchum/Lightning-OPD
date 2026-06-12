@@ -1,9 +1,15 @@
 {
   "openthoughts3_300k_qwen3-8b": {
-    "file_name": "data/sft_data/openthoughts3_300k_qwen3-8b.parquet",
+    "file_name": "../../openthoughts_300k_qwen3-8b_shuffled_seed_420.jsonl",
     "formatting": "sharegpt",
     "columns": {
       "messages": "messages"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant"
     }
   },
   "openthoughts3_300k_qwen3-32b": {

@@ -32,7 +32,7 @@ torchrun \
     --rdzv_id $RANDOM \
     --rdzv_backend c10d \
     --rdzv_endpoint "${MASTER_ADDR}:29500" \
-    -m llamafactory.cli.train \
+    -m llamafactory.launcher \
     "configs/sft/${CONFIG_YAML}" \
     "dataset_dir=configs/sft" \
     "output_dir=${OUTPUT_DIR}"
