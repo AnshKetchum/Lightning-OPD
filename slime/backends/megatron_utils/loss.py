@@ -596,6 +596,8 @@ def policy_loss_function(
         importance_weight_mean = sum_of_sample_mean(iw)
         importance_weight_std = sum_of_sample_mean((iw - 1).pow(2)).sqrt()
 
+    loss_mask_mean = torch.cat(batch["loss_masks"]).float().mean()
+
     pg_ratio_mean = None
     pg_ratio_std = None
     if "init_log_probs" in batch and batch["init_log_probs"]:
@@ -612,6 +614,7 @@ def policy_loss_function(
         "entropy_loss": entropy_loss.clone().detach(),
         "pg_clipfrac": pg_clipfrac.clone().detach(),
         "ppo_kl": ppo_kl.clone().detach(),
+        "loss_mask_mean": loss_mask_mean.clone().detach(),
     }
 
     if train_rollout_logprob_abs_diff is not None:
