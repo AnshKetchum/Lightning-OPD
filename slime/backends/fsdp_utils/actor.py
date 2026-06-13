@@ -332,6 +332,7 @@ class FSDPTrainRayActor(TrainRayActor):
         dist.barrier(group=get_gloo_group())
         print_memory("after wake_up model")
 
+    @timer
     def save_model(self, rollout_id: int, force_sync: bool = False) -> None:
         """Delegate checkpoint saving to the shared checkpoint utilities."""
         if self.args.debug_rollout_only or self.args.save is None:
@@ -515,19 +516,20 @@ class FSDPTrainRayActor(TrainRayActor):
 
     def _log_rollout_data(self, rollout_id: int, rollout_data, packed_batches):
         log_dict = {}
-        if "raw_reward" in rollout_data and dist.get_rank() == 0:
-            raw_reward_list = rollout_data["raw_reward"]
-            if raw_reward_list:
-                log_dict["rollout/raw_reward"] = sum(raw_reward_list) / len(raw_reward_list)
 
-        for metric_key in ["log_probs", "rollout_log_probs", "ref_log_probs", "advantages", "returns"]:
+        # Token-level tensor metrics: loss-mask-weighted mean from packed batches, then
+        # all-reduced across DP ranks so every rank contributes equally.
+        _PACKED_TENSOR_KEYS = [
+            "log_probs", "rollout_log_probs", "ref_log_probs",
+            "advantages", "returns", "teacher_log_probs",
+        ]
+        for metric_key in _PACKED_TENSOR_KEYS:
             packed_val = packed_batches[0].get(metric_key)
             if packed_val is None or (isinstance(packed_val, torch.Tensor) and packed_val.numel() == 0):
                 continue
             val = torch.tensor([0.0], device=torch.cuda.current_device())
-            for _mbs_id, batches in enumerate(packed_batches):
-                unpacked_batches = unpack_sequences(batches)
-                for unpacked_batch in unpacked_batches:
+            for batches in packed_batches:
+                for unpacked_batch in unpack_sequences(batches):
                     if isinstance(unpacked_batch[metric_key], torch.Tensor):
                         loss_masks_tensor = unpacked_batch["loss_masks"].to(device=torch.cuda.current_device())
                         metric_tensor = unpacked_batch[metric_key].to(device=torch.cuda.current_device())
@@ -538,6 +540,39 @@ class FSDPTrainRayActor(TrainRayActor):
             log_dict[f"rollout/{metric_key}"] = (
                 val / (self.args.n_samples_per_prompt * self.args.rollout_batch_size)
             ).item()
+
+        # Generic loop over all remaining rollout_data fields — mirrors Megatron's log_rollout_data.
+        # Scalar/int lists are averaged from each rank's own partition (no cross-rank reduction);
+        # tensor lists use rollout_data loss_masks for weighting.
+        _SKIP_KEYS = {
+            "tokens", "multimodal_train_inputs", "loss_masks",
+            "sample_indices", "rollout_routed_experts",
+            *_PACKED_TENSOR_KEYS,
+        }
+        for key, val in rollout_data.items():
+            if key in _SKIP_KEYS or val is None:
+                continue
+            if isinstance(val, (list, tuple)):
+                val = [v for v in val if v is not None]
+                if not val:
+                    continue
+                if all(isinstance(v, torch.Tensor) for v in val):
+                    val_cat = torch.cat(val).float()
+                    masks_cat = torch.cat([
+                        m if isinstance(m, torch.Tensor) else torch.tensor(m, dtype=torch.float32)
+                        for m in rollout_data["loss_masks"]
+                    ]).to(val_cat.device)
+                    log_dict[f"rollout/{key}"] = (
+                        (val_cat * masks_cat).sum() / masks_cat.sum().clamp_min(1)
+                    ).item()
+                else:
+                    log_dict[f"rollout/{key}"] = (
+                        sum(float(v.mean()) if isinstance(v, torch.Tensor) else float(v) for v in val) / len(val)
+                    )
+            elif isinstance(val, torch.Tensor):
+                log_dict[f"rollout/{key}"] = val.float().mean().item()
+            # Silently skip non-numeric types (strings, dicts, etc.)
+
         if dist.get_rank() == 0:
             logger.info(f"rollout {rollout_id}: {log_dict}")
             log_dict["rollout/step"] = compute_rollout_step(self.args, rollout_id)

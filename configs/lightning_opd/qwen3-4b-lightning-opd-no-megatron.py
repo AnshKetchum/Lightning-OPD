@@ -14,18 +14,8 @@ import slime.utils.external_utils.command_utils as U
 #   LIGHTNING_OPD_DATA   - path to the precomputed parquet
 
 MODEL_NAME = "Qwen3-4B-Base-Open-Thoughts-Qwen3-8B-sft-3k"
-MODEL_TYPE = "qwen3-4B"
 NUM_GPUS = 8
 SFT_CHECKPOINT = os.environ["SFT_CHECKPOINT"]
-
-
-def prepare():
-    U.convert_checkpoint(
-        model_name=MODEL_NAME,
-        megatron_model_type=MODEL_TYPE,
-        num_gpus_per_node=NUM_GPUS,
-        hf_checkpoint=SFT_CHECKPOINT,
-    )
 
 
 def execute(rerun=True):
@@ -37,6 +27,7 @@ def execute(rerun=True):
         f"--load {load_save_path} "
         f"--save {load_save_path} "
         "--save-interval 10 "
+        "--keep-last-k-checkpoints 3 "
     )
 
     rollout_args = (
@@ -128,5 +119,4 @@ def execute(rerun=True):
 
 
 if __name__ == "__main__":
-    prepare()
     execute(rerun=False)

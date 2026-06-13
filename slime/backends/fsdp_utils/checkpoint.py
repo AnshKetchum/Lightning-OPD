@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import time
 from pathlib import Path
 from typing import Any
@@ -248,5 +249,12 @@ def save(actor: Any, iteration: int) -> None:
         tracker_file = base_dir / "latest_checkpointed_iteration.txt"
         tracker_file.write_text(str(step_id))
         logger.info(f"[FSDP] Saved checkpoint to {checkpoint_dir}")
+
+        k = getattr(actor.args, "keep_last_k_checkpoints", None)
+        if k is not None and k > 0:
+            existing = sorted(base_dir.glob("iter_*"), key=lambda p: int(p.name.split("_")[1]))
+            for old_dir in existing[:-k]:
+                shutil.rmtree(old_dir, ignore_errors=True)
+                logger.info(f"[FSDP] Deleted old checkpoint {old_dir}")
 
     dist.barrier()

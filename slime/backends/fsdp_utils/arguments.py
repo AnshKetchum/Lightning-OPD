@@ -48,6 +48,8 @@ class FSDPArgs:
         "gloo"  # CPU backend for FSDP CPU offload (e.g., "gloo"). Set to None to disable hybrid backend.
     )
 
+    keep_last_k_checkpoints: int | None = None  # If set, delete older checkpoints beyond this many
+
     deterministic_mode: bool = False  # This name must be the same as Megatron's
 
     # Context Parallelism
