@@ -33,11 +33,10 @@ def execute(rerun=True):
 
     ckpt_args = (
         f"--hf-checkpoint {SFT_CHECKPOINT} "
-        f"--ref-load /root/models/{MODEL_NAME}_torch_dist "
-        f"--load {SFT_CHECKPOINT} "
+        f"--ref-load {SFT_CHECKPOINT} "
+        f"--load {load_save_path} "
         f"--save {load_save_path} "
         "--save-interval 10 "
-        "--save-retain-interval 100 "
     )
 
     rollout_args = (
@@ -59,15 +58,7 @@ def execute(rerun=True):
     )
 
     perf_args = (
-        "--tensor-model-parallel-size 2 "
-        "--sequence-parallel "
-        "--pipeline-model-parallel-size 1 "
         "--context-parallel-size 1 "
-        "--expert-model-parallel-size 1 "
-        "--expert-tensor-parallel-size 1 "
-        "--recompute-granularity full "
-        "--recompute-method uniform "
-        "--recompute-num-layers 1 "
         "--use-dynamic-batch-size "
         "--max-tokens-per-gpu 16384 "
     )
@@ -104,14 +95,16 @@ def execute(rerun=True):
     )
 
     misc_args = (
-        "--attention-dropout 0.0 "
-        "--hidden-dropout 0.0 "
-        "--accumulate-allreduce-grads-in-fp32 "
-        "--attention-softmax-in-fp32 "
-        "--attention-backend flash "
         "--actor-num-nodes 1 "
         "--actor-num-gpus-per-node 8 "
         "--rollout-num-gpus 0 "
+    )
+
+    backend_args = (
+        "--train-backend fsdp "
+        "--gradient-checkpointing "
+        "--fsdp-cpu-offload "
+        "--attn-implementation flash_attention_3"
     )
 
     train_args = (
@@ -124,14 +117,16 @@ def execute(rerun=True):
         f"{perf_args} "
         f"{sglang_args} "
         f"{misc_args} "
+        f"{backend_args}"
     )
 
     U.execute_train(
         train_args=train_args,
         num_gpus_per_node=NUM_GPUS,
-        megatron_model_type=MODEL_TYPE,
+        megatron_model_type=None
     )
 
 
 if __name__ == "__main__":
+    prepare()
     execute(rerun=False)

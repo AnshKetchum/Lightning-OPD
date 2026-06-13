@@ -62,6 +62,9 @@ class FSDPTrainRayActor(TrainRayActor):
     def init(self, args: Namespace, role: str, with_ref: bool = False) -> int:  # type: ignore[override]
         super().init(args, role, with_ref)
 
+        if not hasattr(args, "gradient_checkpointing"):
+            args.gradient_checkpointing = False
+
         # Setup device mesh for parallelism (handles both CP and non-CP cases)
         self._setup_device_mesh()
         torch.manual_seed(args.seed)
@@ -107,6 +110,9 @@ class FSDPTrainRayActor(TrainRayActor):
 
         model.train()
 
+        if args.gradient_checkpointing:
+            model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+
         full_state = model.state_dict()
 
         model = apply_fsdp2(model, mesh=self.dp_mesh, cpu_offload=self.fsdp_cpu_offload, args=self.args)
@@ -116,9 +122,6 @@ class FSDPTrainRayActor(TrainRayActor):
         )
 
         self.model = model
-
-        if args.gradient_checkpointing:
-            self.model.gradient_checkpointing_enable()
 
         if args.optimizer == "adam":
             self.optimizer = torch.optim.AdamW(
@@ -141,6 +144,7 @@ class FSDPTrainRayActor(TrainRayActor):
 
         # Create separate ref model if needed (kept in CPU until needed)
         self.ref_model = None
+        print(args.ref_load)
         if with_ref:
             self.ref_model = self._create_ref_model(args.ref_load)
 
@@ -466,6 +470,9 @@ class FSDPTrainRayActor(TrainRayActor):
                     rollout_log_probs=(
                         rollout_data["rollout_log_probs"][start:end] if "rollout_log_probs" in rollout_data else None
                     ),
+                    teacher_log_probs=(
+                        rollout_data["teacher_log_probs"][start:end] if "teacher_log_probs" in rollout_data else None
+                    ),
                     multimodal_train_inputs=(
                         rollout_data["multimodal_train_inputs"][start:end]
                         if "multimodal_train_inputs" in rollout_data
@@ -514,7 +521,8 @@ class FSDPTrainRayActor(TrainRayActor):
                 log_dict["rollout/raw_reward"] = sum(raw_reward_list) / len(raw_reward_list)
 
         for metric_key in ["log_probs", "rollout_log_probs", "ref_log_probs", "advantages", "returns"]:
-            if metric_key not in packed_batches[0]:
+            packed_val = packed_batches[0].get(metric_key)
+            if packed_val is None or (isinstance(packed_val, torch.Tensor) and packed_val.numel() == 0):
                 continue
             val = torch.tensor([0.0], device=torch.cuda.current_device())
             for _mbs_id, batches in enumerate(packed_batches):
@@ -548,6 +556,18 @@ class FSDPTrainRayActor(TrainRayActor):
                 torch.tensor([rollout_data["rewards"][i]] * rollout_data["response_lengths"][i])
                 for i in range(len(rollout_data["rewards"]))
             ]
+        elif self.args.advantage_estimator == "on_policy_distillation":
+            # Pre-slice teacher_log_probs to response_length so they pack correctly.
+            # Advantages are placeholder zeros here; they get replaced below after
+            # the actor forward pass computes fresh student log probs (matching the
+            # Megatron compute_advantages_and_returns flow).
+            response_lengths = rollout_data["response_lengths"]
+            rollout_data["teacher_log_probs"] = [
+                t[-r:] for t, r in zip(rollout_data["teacher_log_probs"], response_lengths)
+            ]
+            rollout_data["advantages"] = rollout_data["returns"] = [
+                torch.zeros(r, dtype=torch.float32) for r in response_lengths
+            ]
         else:
             raise NotImplementedError(f"Unsupported advantage_estimator {self.args.advantage_estimator}")
 
@@ -561,6 +581,17 @@ class FSDPTrainRayActor(TrainRayActor):
             self._compute_log_prob("ref", packed_batches, store_prefix="ref_")
 
         self._compute_log_prob("actor", packed_batches)
+
+        if self.args.advantage_estimator == "on_policy_distillation":
+            # Now that batch["log_probs"] (student, no-grad) is populated, compute
+            # real advantages = teacher - student and update the packed batches.
+            for packed_batch in packed_batches:
+                unpacked = unpack_sequences(packed_batch)
+                new_adv = torch.cat(
+                    [u["teacher_log_probs"].to(u["log_probs"].device) - u["log_probs"] for u in unpacked]
+                )
+                packed_batch["advantages"] = new_adv
+                packed_batch["returns"] = new_adv.clone()
         self._log_rollout_data(rollout_id, rollout_data, packed_batches)
 
         with timer("actor_train"):

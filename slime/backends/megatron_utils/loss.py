@@ -596,7 +596,8 @@ def policy_loss_function(
         importance_weight_mean = sum_of_sample_mean(iw)
         importance_weight_std = sum_of_sample_mean((iw - 1).pow(2)).sqrt()
 
-    loss_mask_mean = torch.cat(batch["loss_masks"]).float().mean()
+    loss_mask_mean = sum(mask.float().mean() for mask in batch["loss_masks"])
+    
 
     pg_ratio_mean = None
     pg_ratio_std = None

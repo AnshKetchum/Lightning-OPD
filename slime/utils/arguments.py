@@ -1520,12 +1520,17 @@ def slime_validate_args(args):
             or not os.path.exists(args.load)
             or not os.path.exists(os.path.join(args.load, "latest_checkpointed_iteration.txt"))
         ):
-            args.no_load_optim = True
-            args.no_load_rng = True
-            args.finetune = True
-            args.load = args.ref_load
-            if args.ref_ckpt_step is not None:
-                args.ckpt_step = args.ref_ckpt_step
+            if args.train_backend != "fsdp":
+                # Megatron-only: bootstrap load path from the ref checkpoint so megatron
+                # can load initial weights from the torch_dist checkpoint.  FSDP loads
+                # initial weights directly via from_pretrained(hf_checkpoint) and lets
+                # checkpoint.load() return None when no FSDP checkpoint exists yet.
+                args.no_load_optim = True
+                args.no_load_rng = True
+                args.finetune = True
+                args.load = args.ref_load
+                if args.ref_ckpt_step is not None:
+                    args.ckpt_step = args.ref_ckpt_step
             args.start_rollout_id = 0
 
     if args.eval_interval is not None:

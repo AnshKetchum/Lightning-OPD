@@ -180,6 +180,10 @@ class UpdateWeightFromTensor(UpdateWeight):
 class UpdateWeightFromDistributed(UpdateWeight):
     """Broadcast weights via a temporary NCCL group to rollout engines."""
 
+    def __init__(self, args: Namespace, model: torch.nn.Module) -> None:
+        super().__init__(args, model)
+        self._is_src_rank = False
+
     def connect_rollout_engines(
         self,
         rollout_engines: Sequence[ActorHandle],

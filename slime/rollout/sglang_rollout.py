@@ -127,12 +127,14 @@ def _handle_lightning_opd_sample(sample: Sample, state: "GenerateState") -> Samp
     loss_mask = metadata.get("loss_mask", [1] * len(response_tokens))
     if isinstance(loss_mask, np.ndarray):
         loss_mask = loss_mask.tolist()
+    print("[sglang_rollout.py] getting loss mask", sum(loss_mask) / len(loss_mask), "loss_mask" in metadata)
 
     # Full sequence = prompt tokens + response tokens (RM needs full context for logprobs)
     # Force Python int conversion: parquet pyarrow backend can produce numpy.int64 elements
     # that survive list() but fail JSON serialization when sent to the teacher server.
     sample.tokens = [int(x) for x in prompt] + [int(x) for x in response_tokens]
     sample.loss_mask = [int(x) for x in loss_mask]
+    print("[sglang_rollout.py] setting sample loss mask to", sum(sample.loss_mask) / len(sample.loss_mask))
     sample.response_length = int(sum(loss_mask))
     sample.response = metadata.get("response", "")
     sample.status = Sample.Status.COMPLETED

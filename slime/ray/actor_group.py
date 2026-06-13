@@ -87,7 +87,7 @@ class RayTrainGroup:
 
         else:
             from slime.backends.fsdp_utils import FSDPTrainRayActor
-
+            print("NOT using megatron")
             actor_impl = FSDPTrainRayActor
 
         TrainRayActor = ray.remote(num_gpus=1, runtime_env={"env_vars": env_vars})(actor_impl)
