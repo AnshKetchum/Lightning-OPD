@@ -26,7 +26,7 @@ def execute(rerun=True):
         f"--ref-load {SFT_CHECKPOINT} "
         f"--load {load_save_path} "
         f"--save {load_save_path} "
-        "--save-interval 10 "
+        "--save-interval 500 "
         "--keep-last-k-checkpoints 3 "
     )
 
